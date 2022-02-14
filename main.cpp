@@ -3,13 +3,10 @@
 #include <direct.h>
 #include <random>
 
-
-// TODO: unify these structures as "average tests" or something
-
 struct
 {
     size_t testCount = 10000;
-    size_t sampleCount = 10;
+    size_t sampleCount = 25;
     int maxHz = 20;
 
 } g_BlueNoiseTest;
@@ -155,10 +152,11 @@ std::vector<float> MBC(size_t count, int candidateMultiplier)
     return ret;
 }
 
-void WritePoints(const std::vector<float>& _points, const char* fileName)
+void WritePoints(const std::vector<float>& _points, const char* fileName, bool sort)
 {
     std::vector<float> points = _points;
-    std::sort(points.begin(), points.end());
+    if(sort)
+        std::sort(points.begin(), points.end());
 
     FILE* file = nullptr;
     fopen_s(&file, fileName, "wb");
@@ -184,7 +182,9 @@ void MBCTest(int candidateMultiplier, const char* fileNameBase)
         if (testIndex == 0)
         {
             sprintf_s(fileName, "out/%s_%i.points.csv", fileNameBase, candidateMultiplier);
-            WritePoints(points, fileName);
+            WritePoints(points, fileName, false);
+            sprintf_s(fileName, "out/%s_%i.points.sorted.csv", fileNameBase, candidateMultiplier);
+            WritePoints(points, fileName, true);
             DFTAvg = DFT;
             continue;
         }
@@ -256,11 +256,12 @@ TODO:
 * do the same with modified MBC, see if you can make red noise. really want uniform red noise.
  * maybe do all 4 combos. is candidate score the min or max distance from nearest point. is best candidate the min or max of that?
 * and golden ratio? sqrt(2)? pi?
-* try gradient descent to make red noise and other frequency compositions?
+* try gradient descent to make red noise and other frequency compositions? can try to make red noise that doesn't clump or blue noise that does clump.
 ? how many hz should you look at? it repeats for the simple fractions. it must repeat for the blue noise too at some point
 ! could compare vs an image based DFT to see how accurate this is.
 ! Do this in 2D too
 ! get PCG and vec libraries... move this into internal repo?
 ? histogram test? to verify it's uniform?
 * have python auto generate the graphs so you don't need to keep doing it in open office
+* unify the structures as "average tests" or something
 */
