@@ -155,18 +155,36 @@ std::vector<float> MBC(size_t count, int candidateMultiplier)
     return ret;
 }
 
+void WritePoints(const std::vector<float>& _points, const char* fileName)
+{
+    std::vector<float> points = _points;
+    std::sort(points.begin(), points.end());
+
+    FILE* file = nullptr;
+    fopen_s(&file, fileName, "wb");
+
+    for (float f : points)
+        fprintf(file, "\"%f\"\n", f);
+
+    fclose(file);
+
+}
+
 template <bool CandidateScoreIsMinDistance, bool BestCandidateIsMaxScore>
 void MBCTest(int candidateMultiplier, const char* fileNameBase)
 {
+    char fileName[1024];
     printf(__FUNCTION__"(%i, \"%s\")\n", candidateMultiplier, fileNameBase);
     std::vector<DFTRow> DFTAvg;
 
     for (size_t testIndex = 0; testIndex < g_BlueNoiseTest.testCount; ++testIndex)
     {
-        std::vector<float> blueNoise = MBC<CandidateScoreIsMinDistance, BestCandidateIsMaxScore>(g_BlueNoiseTest.sampleCount, candidateMultiplier);
-        std::vector<DFTRow> DFT = DFTPoints(blueNoise, -g_BlueNoiseTest.maxHz, g_BlueNoiseTest.maxHz);
+        std::vector<float> points = MBC<CandidateScoreIsMinDistance, BestCandidateIsMaxScore>(g_BlueNoiseTest.sampleCount, candidateMultiplier);
+        std::vector<DFTRow> DFT = DFTPoints(points, -g_BlueNoiseTest.maxHz, g_BlueNoiseTest.maxHz);
         if (testIndex == 0)
         {
+            sprintf_s(fileName, "out/%s_%i.points.csv", fileNameBase, candidateMultiplier);
+            WritePoints(points, fileName);
             DFTAvg = DFT;
             continue;
         }
@@ -175,7 +193,6 @@ void MBCTest(int candidateMultiplier, const char* fileNameBase)
             DFTAvg[i].mag = Lerp(DFTAvg[i].mag, DFT[i].mag, 1.0f / float(testIndex+1));
     }
     
-    char fileName[1024];
     sprintf_s(fileName, "out/%s_%i.avg.csv", fileNameBase, candidateMultiplier);
     WriteDFTRowsMag(DFTAvg, fileName);
 }
