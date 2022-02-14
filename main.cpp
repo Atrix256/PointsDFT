@@ -3,6 +3,9 @@
 #include <direct.h>
 #include <random>
 
+
+// TODO: unify these structures as "average tests" or something
+
 struct
 {
     size_t testCount = 10000;
@@ -87,6 +90,8 @@ std::vector<DFTRow> DFTPoints(const std::vector<float>& points, int minHz, int m
     return ret;
 }
 
+// Blue noise is <true, true>
+template <bool CandidateScoreIsMinDistance, bool BestCandidateIsMaxScore>
 std::vector<float> MBC(size_t count, int candidateMultiplier)
 {
     std::random_device rd;
@@ -105,19 +110,42 @@ std::vector<float> MBC(size_t count, int candidateMultiplier)
         for (size_t candidateIndex = 0; candidateIndex < candidateCount; ++candidateIndex)
         {
             float candidate = dist(rng);
-            float candidateScore = FLT_MAX;
+            float candidateScore = 0.0f;
 
+            int pointIndex = 0;
             for (float f : ret)
             {
                 float dist = std::abs(f - candidate);
-                dist = std::min(dist, 1.0f - dist);
-                candidateScore = std::min(candidateScore, dist);
+                if (CandidateScoreIsMinDistance)
+                {
+                    dist = std::min(dist, 1.0f - dist);
+                    if (pointIndex == 0 || dist < candidateScore)
+                        candidateScore = dist;
+                }
+                else
+                {
+                    dist = std::max(dist, 1.0f - dist);
+                    if (pointIndex == 0 || dist > candidateScore)
+                        candidateScore = dist;
+                }
+                pointIndex++;
             }
 
-            if (candidateScore > bestCandidateScore)
+            if (BestCandidateIsMaxScore)
             {
-                bestCandidate = candidate;
-                bestCandidateScore = candidateScore;
+                if (candidateIndex == 0 || candidateScore > bestCandidateScore)
+                {
+                    bestCandidate = candidate;
+                    bestCandidateScore = candidateScore;
+                }
+            }
+            else
+            {
+                if (candidateIndex == 0 || candidateScore < bestCandidateScore)
+                {
+                    bestCandidate = candidate;
+                    bestCandidateScore = candidateScore;
+                }
             }
         }
 
@@ -127,14 +155,15 @@ std::vector<float> MBC(size_t count, int candidateMultiplier)
     return ret;
 }
 
-void BlueNoiseTest(int candidateMultiplier)
+template <bool CandidateScoreIsMinDistance, bool BestCandidateIsMaxScore>
+void MBCTest(int candidateMultiplier, const char* fileNameBase)
 {
-    printf("BlueNoiseTest(%i)\n", candidateMultiplier);
+    printf(__FUNCTION__"(%i, \"%s\")\n", candidateMultiplier, fileNameBase);
     std::vector<DFTRow> DFTAvg;
 
     for (size_t testIndex = 0; testIndex < g_BlueNoiseTest.testCount; ++testIndex)
     {
-        std::vector<float> blueNoise = MBC(g_BlueNoiseTest.sampleCount, candidateMultiplier);
+        std::vector<float> blueNoise = MBC<CandidateScoreIsMinDistance, BestCandidateIsMaxScore>(g_BlueNoiseTest.sampleCount, candidateMultiplier);
         std::vector<DFTRow> DFT = DFTPoints(blueNoise, -g_BlueNoiseTest.maxHz, g_BlueNoiseTest.maxHz);
         if (testIndex == 0)
         {
@@ -147,7 +176,7 @@ void BlueNoiseTest(int candidateMultiplier)
     }
     
     char fileName[1024];
-    sprintf_s(fileName, "out/bluenoiseavg_%i.csv", candidateMultiplier);
+    sprintf_s(fileName, "out/%s_%i.avg.csv", fileNameBase, candidateMultiplier);
     WriteDFTRowsMag(DFTAvg, fileName);
 }
 
@@ -185,8 +214,19 @@ int main(int argc, char** argv)
     WriteDFTRows(DFTPoints({ 0.0f, 1.0f / 4.0f, 3.0f / 4.0f }, -10, 10), "out/1.csv");
     WriteDFTRows(DFTPoints({ 0.822120f, 0.547486f, 0.234054f, 0.428338f, 0.78547f, 0.734857f, 0.646972f, 0.941578f, 0.492718f, 0.327577f }, -25, 25), "out/2.csv");
 
-    BlueNoiseTest(1);
-    BlueNoiseTest(5);
+    MBCTest<true, true>(1, "blue");
+    MBCTest<true, true>(2, "blue");
+    MBCTest<true, true>(5, "blue");
+
+    MBCTest<true, false>(1, "red");
+    MBCTest<true, false>(2, "red");
+    MBCTest<true, false>(5, "red");
+
+    // This also makes blue noise
+    //MBCTest<false, false>(1, "MBC00");
+
+    // This also makes red noise
+    //MBCTest<false, true>(1, "MBC01");
 
     WhiteNoiseTest();
 
@@ -197,11 +237,13 @@ int main(int argc, char** argv)
 
 TODO:
 * do the same with modified MBC, see if you can make red noise. really want uniform red noise.
+ * maybe do all 4 combos. is candidate score the min or max distance from nearest point. is best candidate the min or max of that?
 * and golden ratio? sqrt(2)? pi?
 * try gradient descent to make red noise and other frequency compositions?
 ? how many hz should you look at? it repeats for the simple fractions. it must repeat for the blue noise too at some point
 ! could compare vs an image based DFT to see how accurate this is.
 ! Do this in 2D too
 ! get PCG and vec libraries... move this into internal repo?
-
+? histogram test? to verify it's uniform?
+* have python auto generate the graphs so you don't need to keep doing it in open office
 */
